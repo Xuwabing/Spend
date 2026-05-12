@@ -1574,23 +1574,18 @@
 .ac-wrap > input { width: 100%; background: transparent; position: relative; z-index: 2; }
 .ac-ghost {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  inset: 0;
   pointer-events: auto;
-  opacity: 0.32;
-  white-space: pre;
   user-select: none;
   -webkit-user-select: none;
   z-index: 1;
   touch-action: manipulation;
+  white-space: pre;
+  overflow: hidden;
 }
 .ac-ghost:empty { display: none; }
-.ac-meas {
-  position: absolute;
-  visibility: hidden;
-  white-space: pre;
-  top: 0; left: 0;
-}
+.ac-ghost-typed { visibility: hidden; }
+.ac-ghost-tail { opacity: 0.32; }
 
 </style>
 </head>
@@ -2445,56 +2440,52 @@ function attachAutocomplete(inputEl, fieldKey) {
 
   function positionGhost() {
     const cs = getComputedStyle(inputEl);
-    const meas = document.createElement('span');
-    meas.className = 'ac-meas';
-    // Copy text-affecting styles BEFORE measuring
-    meas.style.fontFamily = cs.fontFamily;
-    meas.style.fontSize = cs.fontSize;
-    meas.style.fontWeight = cs.fontWeight;
-    meas.style.fontStyle = cs.fontStyle;
-    meas.style.letterSpacing = cs.letterSpacing;
-    meas.style.textTransform = cs.textTransform;
-    meas.textContent = inputEl.value;
-    wrap.appendChild(meas);
-    const w = meas.getBoundingClientRect().width;
-    wrap.removeChild(meas);
+    const rect = inputEl.getBoundingClientRect();
 
-    // Right-aligned inputs: ghost goes to the right of caret position (= right edge - empty space)
-    // Left-aligned inputs: ghost goes after the typed text width + left padding
-    const padL = parseFloat(cs.paddingLeft) || 0;
-    const padR = parseFloat(cs.paddingRight) || 0;
-    const align = cs.textAlign;
-
+    // Build a hidden mirror that matches the input exactly, containing
+    // <typed/><ghost/>. This lets the browser handle right-alignment naturally.
     ghost.style.fontFamily = cs.fontFamily;
     ghost.style.fontSize = cs.fontSize;
     ghost.style.fontWeight = cs.fontWeight;
     ghost.style.letterSpacing = cs.letterSpacing;
     ghost.style.color = cs.color;
+    ghost.style.textAlign = cs.textAlign;
+    ghost.style.paddingLeft = cs.paddingLeft;
+    ghost.style.paddingRight = cs.paddingRight;
+    ghost.style.paddingTop = cs.paddingTop;
+    ghost.style.paddingBottom = cs.paddingBottom;
+    ghost.style.boxSizing = cs.boxSizing;
+    ghost.style.width = rect.width + 'px';
+    ghost.style.height = rect.height + 'px';
+    ghost.style.left = '0';
+    ghost.style.top = '0';
+    ghost.style.transform = 'none';
+    ghost.style.lineHeight = cs.lineHeight;
+    ghost.style.display = 'flex';
+    ghost.style.alignItems = 'center';
+    ghost.style.justifyContent = (cs.textAlign === 'right' || cs.textAlign === 'end') ? 'flex-end' : 'flex-start';
 
-    if (align === 'right' || align === 'end') {
-      // Position ghost right after the typed text, which sits flush with the right edge
-      const inputW = inputEl.getBoundingClientRect().width;
-      ghost.style.left = (inputW - padR) + 'px';
-      ghost.style.right = 'auto';
-    } else {
-      ghost.style.left = (padL + w) + 'px';
-      ghost.style.right = 'auto';
-    }
+    // Inner content: invisible typed text + visible ghost suffix
+    ghost.innerHTML =
+      '<span class="ac-ghost-typed">' + escapeHtml(inputEl.value) + '</span>' +
+      '<span class="ac-ghost-tail">' + escapeHtml(currentSuggestion) + '</span>';
   }
 
   function update() {
     // Only show suggestion when caret is at end of input
     const atEnd = inputEl.selectionStart === inputEl.value.length;
     currentSuggestion = atEnd ? findMatch(inputEl.value) : '';
-    ghost.textContent = currentSuggestion;
-    if (currentSuggestion) positionGhost();
+    if (currentSuggestion) {
+      positionGhost();
+    } else {
+      ghost.innerHTML = '';
   }
 
   function accept() {
     if (!currentSuggestion) return false;
     inputEl.value = inputEl.value + currentSuggestion;
     currentSuggestion = '';
-    ghost.textContent = '';
+    ghost.innerHTML = '';
     inputEl.dispatchEvent(new Event('input', { bubbles: true }));
     try { inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length); } catch (e) {}
     if (navigator.vibrate) navigator.vibrate(8);
@@ -2506,7 +2497,7 @@ function attachAutocomplete(inputEl, fieldKey) {
     const full = inputEl.value + currentSuggestion;
     forgetSuggestion(fieldKey, full);
     currentSuggestion = '';
-    ghost.textContent = '';
+    ghost.innerHTML = '';
     if (navigator.vibrate) navigator.vibrate([10, 40, 10]);
     update();
   }
