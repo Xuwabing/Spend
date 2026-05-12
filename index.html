@@ -2444,23 +2444,42 @@ function attachAutocomplete(inputEl, fieldKey) {
   }
 
   function positionGhost() {
-    // Measure typed text width to place ghost right after caret
+    const cs = getComputedStyle(inputEl);
     const meas = document.createElement('span');
     meas.className = 'ac-meas';
+    // Copy text-affecting styles BEFORE measuring
+    meas.style.fontFamily = cs.fontFamily;
+    meas.style.fontSize = cs.fontSize;
+    meas.style.fontWeight = cs.fontWeight;
+    meas.style.fontStyle = cs.fontStyle;
+    meas.style.letterSpacing = cs.letterSpacing;
+    meas.style.textTransform = cs.textTransform;
     meas.textContent = inputEl.value;
     wrap.appendChild(meas);
-    const cs = getComputedStyle(inputEl);
-    meas.style.font = cs.font;
-    meas.style.letterSpacing = cs.letterSpacing;
     const w = meas.getBoundingClientRect().width;
     wrap.removeChild(meas);
 
+    // Right-aligned inputs: ghost goes to the right of caret position (= right edge - empty space)
+    // Left-aligned inputs: ghost goes after the typed text width + left padding
     const padL = parseFloat(cs.paddingLeft) || 0;
-    ghost.style.left = (padL + w) + 'px';
-    ghost.style.font = cs.font;
+    const padR = parseFloat(cs.paddingRight) || 0;
+    const align = cs.textAlign;
+
+    ghost.style.fontFamily = cs.fontFamily;
+    ghost.style.fontSize = cs.fontSize;
+    ghost.style.fontWeight = cs.fontWeight;
     ghost.style.letterSpacing = cs.letterSpacing;
     ghost.style.color = cs.color;
-    ghost.style.textAlign = cs.textAlign;
+
+    if (align === 'right' || align === 'end') {
+      // Position ghost right after the typed text, which sits flush with the right edge
+      const inputW = inputEl.getBoundingClientRect().width;
+      ghost.style.left = (inputW - padR) + 'px';
+      ghost.style.right = 'auto';
+    } else {
+      ghost.style.left = (padL + w) + 'px';
+      ghost.style.right = 'auto';
+    }
   }
 
   function update() {
