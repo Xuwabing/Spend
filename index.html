@@ -264,6 +264,35 @@
     background: radial-gradient(circle at 70% 30%, rgba(255,255,255,0.08), transparent 50%);
     pointer-events: none;
   }
+  .hero-eye {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+  transition: transform 0.15s ease, background 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.hero-eye:active { transform: scale(0.92); background: rgba(255,255,255,0.25); }
+.hero-eye svg { width: 20px; height: 20px; }
+.hero.private .hero-amount,
+.hero.private .hero-stat-val {
+  filter: blur(10px);
+  transition: filter 0.25s ease;
+  user-select: none;
+}
+.hero-amount, .hero-stat-val { transition: filter 0.25s ease; }
   .hero-label {
     font-size: 13px;
     color: rgba(255,255,255,0.7);
@@ -1639,6 +1668,10 @@
 
     <!-- Hero -->
     <div class="hero" id="hero">
+  <button class="hero-eye" id="hero-eye" onclick="togglePrivacy()" aria-label="Toggle privacy">
+    <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+    <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+  </button>
       <div class="hero-label" id="hero-label">Spent this month</div>
       <div class="hero-amount" id="hero-amount">
         <span class="currency">€</span><span class="whole">0</span><span class="cents">.00</span>
@@ -3562,6 +3595,23 @@ function refreshCurrent() {
   if (currentTab === 'meals') renderMeals();
   if (currentTab === 'stats') renderStats();
   if (currentTab === 'settings') renderSettings();
+}
+
+function togglePrivacy() {
+  state.privacy = !state.privacy;
+  saveState();
+  applyPrivacy();
+  if (navigator.vibrate) navigator.vibrate(8);
+}
+
+function applyPrivacy() {
+  const hero = document.getElementById('hero');
+  const eye = document.getElementById('hero-eye');
+  if (!hero || !eye) return;
+  const on = !!state.privacy;
+  hero.classList.toggle('private', on);
+  eye.querySelector('.eye-open').style.display = on ? 'none' : '';
+  eye.querySelector('.eye-closed').style.display = on ? '' : 'none';
 }
 
 /* ============================================
@@ -5658,6 +5708,8 @@ function escapeHtml(s) {
    ============================================ */
 loadState();
 applyTheme();
+state.privacy = true;
+applyPrivacy();
 renderHome();
 registerSW();
 
