@@ -2553,6 +2553,8 @@ function seedSuggestionsFromExisting() {
 
 function attachAutocomplete(inputEl, fieldKey) {
   if (!inputEl || inputEl.dataset.acAttached === '1') return;
+  // Skip multi-line textareas — ghost text doesn't work cleanly with wrapping
+  if (inputEl.tagName === 'TEXTAREA') return;
   inputEl.dataset.acAttached = '1';
 
   // Wrap input in a positioned container so we can overlay ghost text
