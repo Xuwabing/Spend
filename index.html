@@ -1570,6 +1570,28 @@
     50% { opacity: 0.6; }
   }
 
+.ac-wrap { position: relative; display: inline-block; width: 100%; }
+.ac-wrap > input { width: 100%; background: transparent; position: relative; z-index: 2; }
+.ac-ghost {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: auto;
+  opacity: 0.32;
+  white-space: pre;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 1;
+  touch-action: manipulation;
+}
+.ac-ghost:empty { display: none; }
+.ac-meas {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+  top: 0; left: 0;
+}
+
 </style>
 </head>
 <body>
@@ -2384,70 +2406,122 @@ function seedSuggestionsFromExisting() {
   });
 }
 
-/* Attach an autocomplete dropdown to a text input.
-   - inputEl: the <input> or <textarea>
-   - fieldKey: the suggestion bucket name
-   - Creates/manages a sibling .ac-dropdown element. */
 function attachAutocomplete(inputEl, fieldKey) {
-  if (!inputEl || inputEl._acAttached) return;
-  inputEl._acAttached = true;
-  inputEl._acFieldKey = fieldKey;
+  if (!inputEl || inputEl.dataset.acAttached === '1') return;
+  inputEl.dataset.acAttached = '1';
 
-  // Create dropdown container as a sibling
-  const dropdown = document.createElement('div');
-  dropdown.className = 'ac-dropdown';
-  dropdown.style.display = 'none';
-  // Insert just after the input
-  inputEl.insertAdjacentElement('afterend', dropdown);
+  // Wrap input in a positioned container so we can overlay ghost text
+  const wrap = document.createElement('span');
+  wrap.className = 'ac-wrap';
+  inputEl.parentNode.insertBefore(wrap, inputEl);
+  wrap.appendChild(inputEl);
 
-  const render = () => {
-    const key = inputEl._acFieldKey || fieldKey;
-    const q = inputEl.value || '';
-    const sugs = getSuggestions(key, q, 6);
-    if (sugs.length === 0) {
-      dropdown.style.display = 'none';
-      return;
+  const ghost = document.createElement('span');
+  ghost.className = 'ac-ghost';
+  ghost.setAttribute('aria-hidden', 'true');
+  wrap.appendChild(ghost);
+
+  let currentSuggestion = '';
+  let lpTimer = null;
+
+  function pool() {
+    return (state.suggestions && state.suggestions[fieldKey]) || [];
+  }
+
+  function findMatch(value) {
+    if (!value) return '';
+    const v = value.toLowerCase();
+    const hit = pool().find(s => s && s.toLowerCase().startsWith(v) && s.length > value.length);
+    return hit ? hit.slice(value.length) : '';
+  }
+
+  function positionGhost() {
+    // Measure typed text width to place ghost right after caret
+    const meas = document.createElement('span');
+    meas.className = 'ac-meas';
+    meas.textContent = inputEl.value;
+    wrap.appendChild(meas);
+    const cs = getComputedStyle(inputEl);
+    meas.style.font = cs.font;
+    meas.style.letterSpacing = cs.letterSpacing;
+    const w = meas.getBoundingClientRect().width;
+    wrap.removeChild(meas);
+
+    const padL = parseFloat(cs.paddingLeft) || 0;
+    ghost.style.left = (padL + w) + 'px';
+    ghost.style.font = cs.font;
+    ghost.style.letterSpacing = cs.letterSpacing;
+    ghost.style.color = cs.color;
+    ghost.style.textAlign = cs.textAlign;
+  }
+
+  function update() {
+    // Only show suggestion when caret is at end of input
+    const atEnd = inputEl.selectionStart === inputEl.value.length;
+    currentSuggestion = atEnd ? findMatch(inputEl.value) : '';
+    ghost.textContent = currentSuggestion;
+    if (currentSuggestion) positionGhost();
+  }
+
+  function accept() {
+    if (!currentSuggestion) return false;
+    inputEl.value = inputEl.value + currentSuggestion;
+    currentSuggestion = '';
+    ghost.textContent = '';
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    try { inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length); } catch (e) {}
+    if (navigator.vibrate) navigator.vibrate(8);
+    return true;
+  }
+
+  function forget() {
+    if (!currentSuggestion) return;
+    const full = inputEl.value + currentSuggestion;
+    const arr = pool();
+    const idx = arr.findIndex(s => s && s.toLowerCase() === full.toLowerCase());
+    if (idx >= 0) {
+      arr.splice(idx, 1);
+      save();
+      currentSuggestion = '';
+      ghost.textContent = '';
+      if (navigator.vibrate) navigator.vibrate([10, 40, 10]);
     }
-    dropdown.innerHTML = sugs.map(s => `
-      <div class="ac-item" data-val="${escapeHtml(s)}">
-        <span class="ac-item-text">${escapeHtml(s)}</span>
-        <button class="ac-item-x" data-forget="${escapeHtml(s)}" aria-label="Forget this suggestion">×</button>
-      </div>
-    `).join('');
-    dropdown.style.display = 'block';
-  };
+  }
 
-  const hide = () => { dropdown.style.display = 'none'; };
+  inputEl.addEventListener('input', update);
+  inputEl.addEventListener('keyup', update);
+  inputEl.addEventListener('click', update);
+  inputEl.addEventListener('focus', update);
+  inputEl.addEventListener('blur', () => { ghost.textContent = ''; currentSuggestion = ''; });
 
-  inputEl.addEventListener('focus', render);
-  inputEl.addEventListener('input', render);
-  inputEl.addEventListener('blur', () => {
-    setTimeout(hide, 180);
+  // Tab / Right arrow at end / Enter accepts
+  inputEl.addEventListener('keydown', (e) => {
+    if (!currentSuggestion) return;
+    if (e.key === 'Tab') { e.preventDefault(); accept(); }
+    else if (e.key === 'ArrowRight' && inputEl.selectionStart === inputEl.value.length) {
+      e.preventDefault(); accept();
+    }
   });
 
-  dropdown.addEventListener('mousedown', (ev) => {
-    ev.preventDefault();
-  });
-
-  dropdown.addEventListener('click', (ev) => {
-    const forgetVal = ev.target.dataset.forget;
-    if (forgetVal !== undefined) {
-      const key = inputEl._acFieldKey || fieldKey;
-      forgetSuggestion(key, forgetVal);
-      render();
-      if (navigator.vibrate) navigator.vibrate(8);
-      return;
-    }
-    const item = ev.target.closest('.ac-item');
-    if (item && item.dataset.val !== undefined) {
-      inputEl.value = item.dataset.val;
-      hide();
-      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-      if (navigator.vibrate) navigator.vibrate(5);
+  // Tap ghost to accept, long-press to forget
+  ghost.addEventListener('touchstart', (e) => {
+    if (!currentSuggestion) return;
+    lpTimer = setTimeout(() => { lpTimer = null; forget(); }, 500);
+  }, { passive: true });
+  ghost.addEventListener('touchend', (e) => {
+    if (lpTimer) {
+      clearTimeout(lpTimer); lpTimer = null;
+      e.preventDefault();
+      accept();
+      inputEl.focus();
     }
   });
-
-  inputEl._acHide = hide;
+  ghost.addEventListener('touchcancel', () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } });
+  ghost.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    accept();
+    inputEl.focus();
+  });
 }
 
 /* ============================================
