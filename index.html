@@ -1575,17 +1575,21 @@
 .ac-ghost {
   position: absolute;
   inset: 0;
-  pointer-events: auto;
+  pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
-  z-index: 1;
-  touch-action: manipulation;
+  z-index: 3;
   white-space: pre;
   overflow: hidden;
 }
 .ac-ghost:empty { display: none; }
-.ac-ghost-typed { visibility: hidden; }
-.ac-ghost-tail { opacity: 0.32; }
+.ac-ghost-typed { visibility: hidden; pointer-events: none; }
+.ac-ghost-tail {
+  opacity: 0.32;
+  pointer-events: auto;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
 
 .backups-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .backups-empty { color: var(--text-muted, #888); font-size: 14px; padding: 8px 0; }
@@ -1601,6 +1605,12 @@
   padding: 6px 14px; border: none; border-radius: 999px;
   background: var(--accent, #007aff); color: white; font-size: 14px;
   cursor: pointer;
+}
+
+.field input[type="date"] {
+  text-align: left;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 </style>
@@ -2653,12 +2663,13 @@ function attachAutocomplete(inputEl, fieldKey) {
     }
   });
 
-  // Tap ghost to accept, long-press to forget
+  // Tap ghost tail to accept, long-press to forget (event delegation)
   ghost.addEventListener('touchstart', (e) => {
-    if (!currentSuggestion) return;
+    if (!e.target.closest('.ac-ghost-tail') || !currentSuggestion) return;
     lpTimer = setTimeout(() => { lpTimer = null; forget(); }, 500);
   }, { passive: true });
   ghost.addEventListener('touchend', (e) => {
+    if (!e.target.closest('.ac-ghost-tail')) return;
     if (lpTimer) {
       clearTimeout(lpTimer); lpTimer = null;
       e.preventDefault();
@@ -2668,6 +2679,7 @@ function attachAutocomplete(inputEl, fieldKey) {
   });
   ghost.addEventListener('touchcancel', () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } });
   ghost.addEventListener('mousedown', (e) => {
+    if (!e.target.closest('.ac-ghost-tail')) return;
     e.preventDefault();
     accept();
     inputEl.focus();
