@@ -2425,14 +2425,22 @@ function attachAutocomplete(inputEl, fieldKey) {
   let lpTimer = null;
 
   function pool() {
-    return (state.suggestions && state.suggestions[fieldKey]) || [];
+    const bucket = (state.suggestions && state.suggestions[fieldKey]) || {};
+    return Object.keys(bucket).map(k => ({
+      val: k,
+      count: bucket[k].count || 0,
+      lastUsed: bucket[k].lastUsed || 0
+    }));
   }
 
   function findMatch(value) {
     if (!value) return '';
     const v = value.toLowerCase();
-    const hit = pool().find(s => s && s.toLowerCase().startsWith(v) && s.length > value.length);
-    return hit ? hit.slice(value.length) : '';
+    const hits = pool().filter(s => s.val.toLowerCase().startsWith(v) && s.val.length > value.length);
+    if (!hits.length) return '';
+    // Same ranking as rememberSuggestion's pruning: recency + frequency
+    hits.sort((a, b) => (b.lastUsed + b.count * 1000) - (a.lastUsed + a.count * 1000));
+    return hits[0].val.slice(value.length);
   }
 
   function positionGhost() {
@@ -2474,18 +2482,14 @@ function attachAutocomplete(inputEl, fieldKey) {
     return true;
   }
 
-  function forget() {
+ function forget() {
     if (!currentSuggestion) return;
     const full = inputEl.value + currentSuggestion;
-    const arr = pool();
-    const idx = arr.findIndex(s => s && s.toLowerCase() === full.toLowerCase());
-    if (idx >= 0) {
-      arr.splice(idx, 1);
-      save();
-      currentSuggestion = '';
-      ghost.textContent = '';
-      if (navigator.vibrate) navigator.vibrate([10, 40, 10]);
-    }
+    forgetSuggestion(fieldKey, full);
+    currentSuggestion = '';
+    ghost.textContent = '';
+    if (navigator.vibrate) navigator.vibrate([10, 40, 10]);
+    update();
   }
 
   inputEl.addEventListener('input', update);
