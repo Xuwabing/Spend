@@ -1587,6 +1587,22 @@
 .ac-ghost-typed { visibility: hidden; }
 .ac-ghost-tail { opacity: 0.32; }
 
+.backups-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.backups-empty { color: var(--text-muted, #888); font-size: 14px; padding: 8px 0; }
+.backup-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; background: var(--bg-input, rgba(0,0,0,0.04));
+  border-radius: 10px;
+}
+.backup-meta { display: flex; flex-direction: column; }
+.backup-date { font-weight: 500; }
+.backup-sub { font-size: 12px; opacity: 0.6; }
+.backup-restore {
+  padding: 6px 14px; border: none; border-radius: 999px;
+  background: var(--accent, #007aff); color: white; font-size: 14px;
+  cursor: pointer;
+}
+
 </style>
 </head>
 <body>
@@ -1828,6 +1844,19 @@
         <div class="settings-label" style="color: var(--red)">Erase All Data</div>
       </button>
     </div>
+
+    <div class="section-header"><div class="section-title" style="font-size:13px; color: var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; font-weight:700;">Backups</div></div>
+<div class="list">
+  <button class="settings-row" onclick="openBackupsSheet()">
+    <div class="settings-icon" style="background: var(--green, #34c759); color:#fff;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 11-3-6.7L21 8M21 3v5h-5"/></svg>
+    </div>
+    <div class="settings-label">Auto-Backups</div>
+    <div class="settings-val" id="set-backup-count">—</div>
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" class="row-chevron"><path d="M6 4l4 4-4 4"/></svg>
+  </button>
+</div>
+
 
     <div class="section-header"><div class="section-title" style="font-size:13px; color: var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; font-weight:700;">App</div></div>
     <div class="list">
@@ -2189,6 +2218,22 @@
   <div class="sheet-body" id="rates-list"></div>
 </div>
 
+<!-- =============== BACKUPS SHEET =============== -->
+<div class="sheet" id="backups-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <button class="sheet-btn cancel" onclick="closeSheet()">Done</button>
+    <div class="sheet-title">Auto-Backups</div>
+    <div style="width: 50px"></div>
+  </div>
+  <div class="sheet-body">
+    <div style="color:var(--text-secondary); font-size:13px; margin-bottom:12px; padding:0 4px;">
+      Your data is automatically backed up after each change. The last 7 days are kept. Restoring will replace your current data (a safety copy is kept).
+    </div>
+    <div id="backups-list" class="backups-list"></div>
+  </div>
+</div>
+
 <!-- ================ TOAST ================ -->
 <div class="toast" id="toast"></div>
 
@@ -2314,6 +2359,96 @@ function loadState() {
 function saveState() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
   catch (e) { showToast('Could not save data'); }
+  scheduleBackup();
+}
+
+/* ========== AUTO-BACKUP ========== */
+const BACKUP_PREFIX = 'spend:backup:';
+const BACKUP_KEEP = 7;
+let _backupTimer = null;
+
+function scheduleBackup() {
+  if (_backupTimer) return;
+  _backupTimer = setTimeout(() => {
+    _backupTimer = null;
+    try { writeBackup(); } catch (e) { console.warn('backup failed', e); }
+  }, 2000);
+}
+
+function writeBackup() {
+  const today = new Date();
+  const key = BACKUP_PREFIX + today.toISOString().slice(0, 10);
+  const payload = { savedAt: today.toISOString(), state: state };
+  try {
+    localStorage.setItem(key, JSON.stringify(payload));
+  } catch (e) {
+    pruneBackups(BACKUP_KEEP - 1);
+    try { localStorage.setItem(key, JSON.stringify(payload)); } catch (e2) {}
+  }
+  pruneBackups(BACKUP_KEEP);
+}
+
+function listBackups() {
+  const out = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(BACKUP_PREFIX)) out.push(k);
+  }
+  return out.sort().reverse();
+}
+
+function pruneBackups(keep) {
+  const keys = listBackups();
+  for (let i = keep; i < keys.length; i++) localStorage.removeItem(keys[i]);
+}
+
+function readBackup(key) {
+  try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; }
+}
+
+function restoreBackup(key) {
+  const b = readBackup(key);
+  if (!b || !b.state) { showToast('Backup is unreadable'); return false; }
+  try {
+    localStorage.setItem(BACKUP_PREFIX + 'pre-restore', JSON.stringify({
+      savedAt: new Date().toISOString(), state: state
+    }));
+  } catch (e) {}
+  state = b.state;
+  saveState();
+  if (navigator.vibrate) navigator.vibrate([10, 30, 10]);
+  location.reload();
+  return true;
+}
+
+function renderBackups() {
+  const el = document.getElementById('backups-list');
+  if (!el) return;
+  const countEl = document.getElementById('set-backup-count');
+  const keys = listBackups().filter(k => k !== BACKUP_PREFIX + 'pre-restore');
+  if (!keys.length) {
+    el.innerHTML = '<div class="backups-empty">No backups yet. One will be saved next time you change data.</div>';
+    return;
+    
+  }
+  el.innerHTML = keys.map(k => {
+    const b = readBackup(k);
+    const date = k.replace(BACKUP_PREFIX, '');
+    const count = b && b.state && b.state.expenses ? b.state.expenses.length : '?';
+    const time = b && b.savedAt ? new Date(b.savedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+    return '<div class="backup-item"><div class="backup-meta"><div class="backup-date">' + date + '</div><div class="backup-sub">' + count + ' entries · saved ' + time + '</div></div><button class="backup-restore" data-key="' + k + '">Restore</button></div>';
+  }).join('');
+  el.querySelectorAll('.backup-restore').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const k = btn.dataset.key;
+      const b = readBackup(k);
+      const count = b && b.state && b.state.expenses ? b.state.expenses.length : 0;
+      if (confirm('Restore backup from ' + k.replace(BACKUP_PREFIX, '') + '?\n\nThis will replace your current data (' + state.expenses.length + ' entries) with the backup (' + count + ' entries).\n\nA safety copy of your current data will be kept.')) {
+        restoreBackup(k);
+      }
+    });
+  });
+  if (countEl) countEl.textContent = keys.length ? (keys.length + ' saved') : 'None';
 }
 
 /* ========== AUTOCOMPLETE SUGGESTIONS ==========
@@ -2745,6 +2880,7 @@ function switchTab(tab) {
   if (tab === 'stats') renderStats();
   if (tab === 'settings') renderSettings();
   if (navigator.vibrate) navigator.vibrate(8);
+  if (name === 'settings') renderBackups();
 }
 
 /* ============================================
@@ -4899,6 +5035,11 @@ function setCurrency(code) {
   showToast('Currency updated');
   closeSheet();
   refreshCurrent();
+}
+
+function openBackupsSheet() {
+  renderBackups();
+  openSheet('backups-sheet');
 }
 
 function openThemeSheet() {
