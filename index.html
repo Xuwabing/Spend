@@ -4498,7 +4498,7 @@ function renderMealsToday() {
                 <div class="meal-slot-state">Not logged</div>
               </div>
               <div class="meal-actions">
-                <button class="meal-btn home" onclick="quickLogMeal('${today}', '${slot.id}', 'home')">🏠 Home</button>
+                <button class="meal-btn home" onclick="openMealSheet('${today}', '${slot.id}', null, 'home')">🏠 Home</button>
                 <button class="meal-btn out" onclick="openMealSheet('${today}', '${slot.id}', null, 'out')">🍽️ Out</button>
                 <button class="meal-btn delivery" onclick="openMealSheet('${today}', '${slot.id}', null, 'delivery')">🛵</button>
               </div>
