@@ -4535,15 +4535,8 @@ function showAddAnotherMenu(date, slot, anchor) {
 }
 
 function quickLogMeal(date, slot, type) {
-  state.meals.push({
-    id: 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
-    created: Date.now(),
-    date, slot, type, item: '', notes: '',
-  });
-  saveState();
-  showToast(type === 'home' ? '🏠 Logged at home' : 'Logged');
-  if (navigator.vibrate) navigator.vibrate([8, 30, 8]);
-  refreshCurrent();
+  // Always open the meal sheet so the user can add notes/details.
+  openMealSheet(date, slot, null, type);
 }
 
 function editMeal(id) {
