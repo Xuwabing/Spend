@@ -4951,7 +4951,7 @@ function renderMealDayDetail() {
                 <div class="meal-day-sub">Not logged</div>
               </div>
               <div class="meal-actions">
-                <button class="meal-btn home" onclick="quickLogMeal('${mealSelectedDate}', '${s.id}', 'home')">🏠</button>
+                <button class="meal-btn home" onclick="openMealSheet('${mealSelectedDate}', '${s.id}', null, 'home')">🏠</button>
                 <button class="meal-btn out" onclick="openMealSheet('${mealSelectedDate}', '${s.id}', null, 'out')">🍽️</button>
                 <button class="meal-btn delivery" onclick="openMealSheet('${mealSelectedDate}', '${s.id}', null, 'delivery')">🛵</button>
               </div>
