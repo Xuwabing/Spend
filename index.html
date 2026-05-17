@@ -1662,6 +1662,43 @@
   text-align: left;
 }
 
+.month-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 16px 12px;
+}
+.month-arrow {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-elev);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.month-arrow:active { transform: scale(0.9); }
+.month-arrow svg { width: 18px; height: 18px; }
+.month-label {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 10px;
+  -webkit-tap-highlight-color: transparent;
+}
+.month-label:active { background: var(--bg-elev); }
+
 </style>
 </head>
 <body>
@@ -1777,6 +1814,16 @@
         </button>
       </div>
     </div>
+
+    <div class="month-switcher" id="month-switcher" style="display:none;">
+  <button class="month-arrow" onclick="shiftMonth(-1)" aria-label="Previous month">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+  </button>
+  <button class="month-label" id="month-label" onclick="openMonthPicker()">May 2026</button>
+  <button class="month-arrow" id="month-arrow-next" onclick="shiftMonth(1)" aria-label="Next month">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+</div>
 
     <div class="stats-toolbar">
       <button class="stats-tab active" data-range="week" onclick="setStatsRange('week')">Week</button>
@@ -2906,7 +2953,16 @@ function getRangeBounds(range) {
   const now = new Date();
   switch(range) {
     case 'week': return { from: startOfWeek(now), to: now, label: 'this week' };
-    case 'month': return { from: startOfMonth(now), to: now, label: 'this month' };
+    case 'month': {
+  if (currentMonthOffset === 0) {
+    return { from: startOfMonth(now), to: now, label: 'this month' };
+  }
+  const target = new Date(now.getFullYear(), now.getMonth() + currentMonthOffset, 1);
+  const from = startOfMonth(target);
+  const to = new Date(target.getFullYear(), target.getMonth() + 1, 0, 23, 59, 59, 999);
+  const label = target.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  return { from, to, label };
+}
     case 'year': return { from: startOfYear(now), to: now, label: 'this year' };
     case 'all': default: return { from: new Date(0), to: now, label: 'all time' };
   }
@@ -4065,12 +4121,14 @@ function renderHistory() {
    ============================================ */
 function setStatsRange(r) {
   currentRange = r;
+  currentMonthOffset = 0; // reset month offset when switching ranges
   expandedCategoryId = null; // close any open expansion when range changes
   document.querySelectorAll('.stats-tab').forEach(b => b.classList.toggle('active', b.dataset.range === r));
   renderStats();
 }
 
 function renderStats() {
+  updateMonthSwitcher();
   const allInRange = state.expenses.filter(e => inRange(e, currentRange));
   const exp = visibleExpenses(allInRange.filter(isExpense));
   const incomes = allInRange.filter(isIncome);
@@ -4156,6 +4214,7 @@ function renderStats() {
 }
 
 let expandedCategoryId = null; // currently expanded category in Insights
+let currentMonthOffset = 0; // 0 = this month, -1 = last month, etc. Only applies when currentRange === 'month'
 
 function renderCategoriesDonut(exp, total) {
   const wrap = document.getElementById('stats-categories');
@@ -4250,6 +4309,36 @@ function toggleCategoryExpand(catId) {
   // Re-render only the categories card with the current data
   renderStats();
   if (navigator.vibrate) navigator.vibrate(6);
+}
+
+function shiftMonth(delta) {
+  const next = currentMonthOffset + delta;
+  if (next > 0) return; // can't go into the future
+  currentMonthOffset = next;
+  renderStats();
+  if (navigator.vibrate) navigator.vibrate(5);
+}
+
+function updateMonthSwitcher() {
+  const sw = document.getElementById('month-switcher');
+  if (!sw) return;
+  // Only show switcher when on 'month' range
+  if (currentRange !== 'month') {
+    sw.style.display = 'none';
+    return;
+  }
+  sw.style.display = 'flex';
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth() + currentMonthOffset, 1);
+  const label = target.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  document.getElementById('month-label').textContent = label;
+  // Disable "next" arrow when at current month
+  const nextBtn = document.getElementById('month-arrow-next');
+  if (nextBtn) {
+    nextBtn.disabled = currentMonthOffset >= 0;
+    nextBtn.style.opacity = currentMonthOffset >= 0 ? '0.3' : '1';
+    nextBtn.style.pointerEvents = currentMonthOffset >= 0 ? 'none' : 'auto';
+  }
 }
 
 function renderCategoryDetail(cat) {
