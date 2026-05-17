@@ -493,6 +493,15 @@
     display: flex;
     z-index: 0;
   }
+  .swipe-actions-left {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    z-index: 0;
+    }
+    .swipe-row.swiping-right { background: var(--blue, #007aff); }
   .swipe-action {
     width: 90px;
     display: flex;
@@ -3779,11 +3788,13 @@ function renderExpenseRow(e) {
 
   return `
     <div class="swipe-row" data-id="${e.id}">
+      <div class="swipe-actions-left">
+          <button class="swipe-action duplicate-btn" onclick="event.stopPropagation(); duplicateExpense('${e.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            <span>Copy</span>
+          </button>
+        </div>
       <div class="swipe-actions">
-        <button class="swipe-action duplicate-btn" onclick="event.stopPropagation(); duplicateExpense('${e.id}')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-          <span>Copy</span>
-        </button>
         <button class="swipe-action ${hidden ? 'show-btn' : 'hide-btn'}" onclick="event.stopPropagation(); toggleHide('${e.id}')">
           ${hidden
             ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span>Show</span>'
@@ -3934,12 +3945,14 @@ function attachSwipeHandlers() {
         }
       }
       if (locked === 'x') {
-        // rubber-band beyond MAX_SWIPE
-        let raw = Math.min(0, dx);
-        if (raw < -MAX_SWIPE) raw = -MAX_SWIPE - (raw + MAX_SWIPE) * 0.3;
-        deltaX = raw;
-        innerRow.style.transition = 'none';
-        innerRow.style.transform = `translateX(${deltaX}px)`;
+      let raw = dx;
+      if (raw < -MAX_SWIPE) raw = -MAX_SWIPE - (raw + MAX_SWIPE) * 0.3;
+      if (raw > MAX_SWIPE) raw = MAX_SWIPE + (raw - MAX_SWIPE) * 0.3;
+      deltaX = raw;
+      innerRow.style.transition = 'none';
+      innerRow.style.transform = `translateX(${deltaX}px)`;
+      if (deltaX > 0) row.classList.add('swiping-right');
+      else row.classList.remove('swiping-right');
       } else if (locked === 'y') {
         clearTimeout(pressTimer); pressTimer = null;
       }
@@ -3953,8 +3966,15 @@ function attachSwipeHandlers() {
       innerRow.style.transform = '';
       if (locked === 'x' && deltaX < -SNAP_THRESHOLD) {
         row.classList.add('swiped');
+        row.classList.remove('swiping-right');
+      } else if (locked === 'x' && deltaX > SNAP_THRESHOLD) {
+        row.classList.remove('swiped');
+        row.classList.remove('swiping-right');
+        const id = row.dataset.id;
+        if (id) setTimeout(() => duplicateExpense(id), 50);
       } else {
         row.classList.remove('swiped');
+        row.classList.remove('swiping-right');
       }
       deltaX = 0;
     };
