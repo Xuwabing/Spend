@@ -501,7 +501,9 @@
     display: flex;
     z-index: 0;
     }
-    .swipe-row.swiping-right { background: var(--blue, #007aff); }
+  .swipe-row.swiping-right { background: var(--blue, #007aff); }
+  .swipe-row.swiping-right .swipe-actions { visibility: hidden; }
+  .swipe-row.swiped .swipe-actions-left { visibility: hidden; }
   .swipe-action {
     width: 90px;
     display: flex;
@@ -3849,50 +3851,27 @@ function duplicateExpense(id) {
   const orig = state.expenses.find(x => x.id === id);
   if (!orig) return;
 
-  // Build the new expense with a new id, new timestamp, no reimbursements carried over, no meal link
+  // Close any open swipe drawers
+  document.querySelectorAll('.swipe-row.swiped').forEach(r => r.classList.remove('swiped'));
+  document.querySelectorAll('.swipe-row.swiping-right').forEach(r => r.classList.remove('swiping-right'));
+
+  // Build the new expense
   const dup = JSON.parse(JSON.stringify(orig));
   dup.id = 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   dup.created = Date.now();
-  delete dup.reimbursements;       // start clean — original might be paid, copy shouldn't be
-  delete dup.mealId;               // don't link to original's meal entry
-  delete dup.hidden;               // don't carry over hide flag
+  dup.date = todayISO();           // Default to today; user can change in the sheet
+  delete dup.reimbursements;
+  delete dup.mealId;
+  delete dup.hidden;
 
-  // Prompt for a new date via a temporary date input
-  const picker = document.createElement('input');
-  picker.type = 'date';
-  picker.value = orig.date || todayISO();
-  picker.style.cssText = 'position:fixed; left:-9999px; opacity:0;';
-  document.body.appendChild(picker);
-
-  let handled = false;
-  const cleanup = () => { try { document.body.removeChild(picker); } catch(_) {} };
-
-  picker.addEventListener('change', () => {
-    if (handled) return;
-    handled = true;
-    dup.date = picker.value || todayISO();
-    state.expenses.push(dup);
-    saveState();
-    refreshCurrent();
-    showToast('✓ Duplicated');
-    if (navigator.vibrate) navigator.vibrate([8, 30, 8]);
-    cleanup();
-  });
-
-  // If user dismisses without picking, clean up after a beat
-  picker.addEventListener('blur', () => {
-    setTimeout(() => { if (!handled) cleanup(); }, 100);
-  });
-
-  // Close any open swipe drawers before showing picker
-  document.querySelectorAll('.swipe-row.swiped').forEach(r => r.classList.remove('swiped'));
-
-  picker.focus();
-  picker.click();
-  // iOS sometimes needs showPicker
-  if (typeof picker.showPicker === 'function') {
-    try { picker.showPicker(); } catch(_) {}
-  }
+  // Push immediately, then open it for editing so the user can adjust the date
+  state.expenses.push(dup);
+  saveState();
+  if (navigator.vibrate) navigator.vibrate([8, 30, 8]);
+  showToast('✓ Duplicated · adjust date');
+  
+  // Open the new expense in the edit sheet
+  openAddSheet(dup);
 }
 
 function editExpense(id) {
