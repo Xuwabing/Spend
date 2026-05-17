@@ -511,6 +511,7 @@
   .swipe-action.hide-btn { background: var(--orange); }
   .swipe-action.show-btn { background: var(--green); }
   .swipe-action.delete-btn { background: var(--red); }
+  .swipe-action.duplicate-btn { background: var(--blue, #007aff); }
 
   /* Hidden expense styling */
   .list-row.hidden-row { opacity: 0.5; }
@@ -3779,6 +3780,10 @@ function renderExpenseRow(e) {
   return `
     <div class="swipe-row" data-id="${e.id}">
       <div class="swipe-actions">
+        <button class="swipe-action duplicate-btn" onclick="event.stopPropagation(); duplicateExpense('${e.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          <span>Copy</span>
+        </button>
         <button class="swipe-action ${hidden ? 'show-btn' : 'hide-btn'}" onclick="event.stopPropagation(); toggleHide('${e.id}')">
           ${hidden
             ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span>Show</span>'
@@ -3827,6 +3832,56 @@ function deleteExpense(id) {
     showToast('Deleted');
     refreshCurrent();
   });
+}
+
+function duplicateExpense(id) {
+  const orig = state.expenses.find(x => x.id === id);
+  if (!orig) return;
+
+  // Build the new expense with a new id, new timestamp, no reimbursements carried over, no meal link
+  const dup = JSON.parse(JSON.stringify(orig));
+  dup.id = 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  dup.created = Date.now();
+  delete dup.reimbursements;       // start clean — original might be paid, copy shouldn't be
+  delete dup.mealId;               // don't link to original's meal entry
+  delete dup.hidden;               // don't carry over hide flag
+
+  // Prompt for a new date via a temporary date input
+  const picker = document.createElement('input');
+  picker.type = 'date';
+  picker.value = orig.date || todayISO();
+  picker.style.cssText = 'position:fixed; left:-9999px; opacity:0;';
+  document.body.appendChild(picker);
+
+  let handled = false;
+  const cleanup = () => { try { document.body.removeChild(picker); } catch(_) {} };
+
+  picker.addEventListener('change', () => {
+    if (handled) return;
+    handled = true;
+    dup.date = picker.value || todayISO();
+    state.expenses.push(dup);
+    saveState();
+    refreshCurrent();
+    showToast('✓ Duplicated');
+    if (navigator.vibrate) navigator.vibrate([8, 30, 8]);
+    cleanup();
+  });
+
+  // If user dismisses without picking, clean up after a beat
+  picker.addEventListener('blur', () => {
+    setTimeout(() => { if (!handled) cleanup(); }, 100);
+  });
+
+  // Close any open swipe drawers before showing picker
+  document.querySelectorAll('.swipe-row.swiped').forEach(r => r.classList.remove('swiped'));
+
+  picker.focus();
+  picker.click();
+  // iOS sometimes needs showPicker
+  if (typeof picker.showPicker === 'function') {
+    try { picker.showPicker(); } catch(_) {}
+  }
 }
 
 function editExpense(id) {
