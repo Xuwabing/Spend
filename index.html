@@ -4216,7 +4216,7 @@ function renderCategoriesDonut(exp, total) {
         </div>
       </div>
       <div class="legend">
-        ${items.slice(0,6).map(it => `
+        ${(categoriesShowAll ? items : items.slice(0,6)).map(it => `
           <button class="cat-legend-row" data-cat="${it.id}" onclick="toggleCategoryExpand('${it.id}')" style="display: flex; align-items: center; gap: 8px; padding: 4px 6px; margin: 0 -6px; border-radius: 8px; background: ${expandedCategoryId === it.id ? 'var(--press-bg)' : 'none'}; border: none; width: calc(100% + 12px); cursor: pointer; font-family: inherit; color: var(--text-primary); text-align: left;">
             <div class="legend-dot" style="background: ${it.color}; flex-shrink: 0;"></div>
             <div class="legend-name" style="flex: 1;">${it.emoji} ${escapeHtml(it.name)}</div>
@@ -4224,11 +4224,25 @@ function renderCategoriesDonut(exp, total) {
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" style="color: var(--text-tertiary); transition: transform 0.2s; ${expandedCategoryId === it.id ? 'transform: rotate(90deg);' : ''}"><path d="M6 4l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         `).join('')}
-        ${items.length > 6 ? `<div style="font-size: 11px; color: var(--text-tertiary); padding-top: 2px;">+ ${items.length-6} more</div>` : ''}
+        ${items.length > 6 ? `<button class="legend-more" onclick="toggleCategoriesShowAll()" style="display:block; width:100%; padding: 6px 0; margin-top: 4px; font-size: 11px; color: var(--accent); background: none; border: none; cursor: pointer; font-family: inherit;">${categoriesShowAll ? 'Show less' : `+ ${items.length-6} more`}</button>` : ''}
       </div>
     </div>
     ${expandedCategoryId ? renderCategoryDetail(items.find(it => it.id === expandedCategoryId)) : ''}
   `;
+}
+
+let categoriesShowAll = false;
+function toggleCategoriesShowAll() {
+  categoriesShowAll = !categoriesShowAll;
+  renderStats();
+  if (navigator.vibrate) navigator.vibrate(6);
+}
+
+const catExpandedShowAll = {};
+function toggleCatTxsShowAll(catId) {
+  catExpandedShowAll[catId] = !catExpandedShowAll[catId];
+  renderStats();
+  if (navigator.vibrate) navigator.vibrate(6);
 }
 
 function toggleCategoryExpand(catId) {
@@ -4241,7 +4255,7 @@ function toggleCategoryExpand(catId) {
 function renderCategoryDetail(cat) {
   if (!cat || !cat.transactions || cat.transactions.length === 0) return '';
   const txs = cat.transactions.slice().sort((a,b) => expNetAmount(b) - expNetAmount(a));
-  const showCount = Math.min(txs.length, 10);
+  const showCount = catExpandedShowAll[cat.id] ? txs.length : Math.min(txs.length, 10);
   return `
     <div style="margin-top: 14px; padding-top: 14px; border-top: 0.5px solid var(--separator); animation: slideUp 0.3s cubic-bezier(0.22, 1, 0.36, 1);">
       <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 0 4px 8px;">
@@ -4269,7 +4283,7 @@ function renderCategoryDetail(cat) {
             </button>
           `;
         }).join('')}
-        ${txs.length > showCount ? `<div style="font-size: 11px; color: var(--text-tertiary); padding: 8px 0 0; text-align: center;">+ ${txs.length - showCount} more transaction${txs.length-showCount===1?'':'s'}</div>` : ''}
+        ${txs.length > 10 ? `<button class="txs-more" onclick="toggleCatTxsShowAll('${cat.id}')" style="display:block; width:100%; padding: 10px 0 0; font-size: 12px; color: var(--accent); background: none; border: none; cursor: pointer; font-family: inherit;">${catExpandedShowAll[cat.id] ? 'Show less' : `+ ${txs.length - 10} more transaction${txs.length-10===1?'':'s'}`}</button>` : ''}
       </div>
     </div>
   `;
