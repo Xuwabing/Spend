@@ -5161,7 +5161,7 @@ function renderMealDayDetail() {
               <div class="meal-day-icon ${m.type}">${s.emoji}</div>
               <div class="meal-day-body">
                 <div class="meal-day-title">${showSlotName ? s.name + ' · ' : ''}${MEAL_TYPE_LABEL[m.type]}${slotMeals.length > 1 ? ` <span style="color: var(--text-tertiary); font-weight: 500;">${idx+1}/${slotMeals.length}</span>` : ''}</div>
-                <div class="meal-day-sub">${escapeHtml(m.item || (m.type === 'home' ? 'At home' : ''))}</div>
+                <div class="meal-day-sub">${escapeHtml(m.type === 'home' ? (m.notes || 'At home') : (m.item || ''))}</div>
               </div>
               ${expense ? `<div class="meal-day-amount">${fmtMoney(expNetAmount(expense))}</div>` : ''}
             </div>
