@@ -4674,7 +4674,7 @@ function renderMeals() {
 }
 
 function describeMeal(m) {
-  if (m.type === 'home') return '🏠 Home';
+  if (m.type === 'home') return '🏠 ' + escapeHtml(m.notes || 'Home');
   const icon = m.type === 'out' ? '🍽️' : '🛵';
   const label = escapeHtml(m.item || (m.type === 'out' ? 'Out' : 'Delivery'));
   if (m.expenseId) {
